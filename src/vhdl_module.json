@@ -1,0 +1,54 @@
+{
+  "vhdl_entity": {
+    "name": "d_flip_flop",
+    "generics": [],
+    "ports": [
+      {
+        "name": "clk",
+        "direction": "in",
+        "data_type": "STD_LOGIC",
+        "width": null,
+        "default_value": null
+      },
+      {
+        "name": "rst",
+        "direction": "in",
+        "data_type": "STD_LOGIC",
+        "width": null,
+        "default_value": null
+      },
+      {
+        "name": "d",
+        "direction": "in",
+        "data_type": "STD_LOGIC",
+        "width": null,
+        "default_value": null
+      },
+      {
+        "name": "q",
+        "direction": "out",
+        "data_type": "STD_LOGIC",
+        "width": null,
+        "default_value": null
+      }
+    ]
+  },
+  "metadata": {
+    "supported_types": [
+      "std_logic",
+      "std_logic_vector",
+      "integer",
+      "boolean",
+      "natural",
+      "positive",
+      "signed",
+      "unsigned",
+      "real",
+      "bit",
+      "bit_vector",
+      "time",
+      "string"
+    ],
+    "parser_version": "1.0"
+  }
+}
