@@ -1,5 +1,3 @@
-
-
 from vhdl_parser import parse_vhdl_file
 import os
 
