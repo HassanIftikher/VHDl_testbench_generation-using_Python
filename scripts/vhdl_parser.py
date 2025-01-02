@@ -21,24 +21,11 @@ class VHDLType(Enum):
     STRING = "string"
 
 @dataclass
-class PortRange:
-    left: Union[int, str]
-    right: Union[int, str]
-    direction: str = "downto"  # or "to"
-
-    def to_dict(self):
-        return {
-            "left": str(self.left),
-            "right": str(self.right),
-            "direction": self.direction
-        }
-
-@dataclass
 class Port:
     name: str
     direction: str
     data_type: str
-    width: Optional[PortRange] = None
+    width: Optional[str] = None
     default_value: Optional[str] = None
     range: Optional[str] = None
 
@@ -47,7 +34,7 @@ class Port:
             "name": self.name,
             "direction": self.direction,
             "data_type": self.data_type,
-            "width": self.width.to_dict() if self.width else None,
+            "width": self.width,
             "default_value": self.default_value,
             "range": self.range
         }
@@ -89,45 +76,6 @@ class VHDLParser:
         content = ' '.join(content.split())
         return content
 
-    def _parse_range(self, type_str: str) -> Optional[PortRange]:
-        range_match = re.search(r'\((.*?)\)', type_str)
-        if not range_match:
-            return None
-
-        range_str = range_match.group(1)
-        try:
-            if 'downto' in range_str:
-                left, right = range_str.split('downto')
-                direction = "downto"
-            elif 'to' in range_str:
-                left, right = range_str.split('to')
-                direction = "to"
-            else:
-                numbers = re.findall(r'\d+', range_str)
-                if len(numbers) == 2:
-                    return PortRange(int(numbers[0]), int(numbers[1]), "downto")
-                return None
-
-            left = left.strip()
-            right = right.strip()
-
-            try:
-                left = int(left)
-            except ValueError:
-                pass
-
-            try:
-                right = int(right)
-            except ValueError:
-                pass
-
-            print(f"Parsed range: {direction} {left} to {right}")  # Print the range info
-
-            return PortRange(left, right, direction)
-        except Exception as e:
-            print(f"Error parsing range: {str(e)}")
-            return None
-
     def _parse_generics(self, entity_text: str) -> List[Generic]:
         generics = []
         generic_match = re.search(r'generic\s*\((.*?)\);', entity_text, re.IGNORECASE | re.DOTALL)
@@ -166,61 +114,61 @@ class VHDLParser:
 
     def _parse_ports(self, entity_text: str) -> List[Port]:
         ports = []
-        # Improved regex to capture the port block more accurately
         port_match = re.search(r'port\s*\((.*)\)\s*;', entity_text, re.IGNORECASE | re.DOTALL)
 
         if not port_match:
             return ports
 
         port_text = port_match.group(1)
-        # Split the port declarations by semicolon, but keep the line breaks to handle multiline definitions
         port_declarations = [decl.strip() for decl in port_text.split(';') if decl.strip()]
 
         for decl in port_declarations:
             try:
-                # Split name and type
                 name_part, type_part = decl.split(':', 1)
-                names = [n.strip() for n in name_part.split(',')]  # Multiple names, if present
+                names = [n.strip() for n in name_part.split(',')]
                 
-                # Split direction and data type
                 type_parts = type_part.strip().split(maxsplit=1)
                 direction = type_parts[0].lower()
                 data_type_full = type_parts[1] if len(type_parts) > 1 else ""
 
-                # Handle vector types and regular types
-                vector_match = re.match(r'(std_logic_vector|std_logic)\s*\((\d+)\s+(downto|to)\s+(\d+)\)', data_type_full, re.IGNORECASE)
+                vector_match = re.match(
+                    r'(std_logic_vector|bit_vector|signed|unsigned)\s*\((.*?)\)', 
+                    data_type_full, 
+                    re.IGNORECASE
+                )
+                
                 if vector_match:
                     data_type = vector_match.group(1).lower()
-                    left = vector_match.group(2)
-                    right = vector_match.group(4)
-                    vector_direction = vector_match.group(3).lower()  # Changed from 'direction' to 'vector_direction'
-                    width = PortRange(
-                        left=left,
-                        right=right,
-                        direction=vector_direction
-                    )
+                    range_expr = vector_match.group(2).strip()
+                    
+                    for name in names:
+                        if name:
+                            ports.append(Port(
+                                name=name,
+                                direction=direction,
+                                data_type=data_type,
+                                width=range_expr,
+                                default_value=None,
+                                range=None
+                            ))
                 else:
                     data_type = data_type_full.lower()
-                    width = None
-
-                # Now loop through all names (if there are multiple names separated by commas)
-                for name in names:
-                    if name:
-                        ports.append(Port(
-                            name=name,
-                            direction=direction,  # Using original port direction
-                            data_type=data_type,
-                            width=width,
-                            default_value=None,
-                            range=None
-                        ))
+                    for name in names:
+                        if name:
+                            ports.append(Port(
+                                name=name,
+                                direction=direction,
+                                data_type=data_type,
+                                width=None,
+                                default_value=None,
+                                range=None
+                            ))
 
             except Exception as e:
                 print(f"Error parsing port: {decl}, Error: {str(e)}")
                 continue
 
         return ports
-
 
     def parse(self) -> Entity:
         entity_pattern = r'entity\s+(\w+)\s+is(.*?)end\s+(?:entity\s+)?\1\s*;'
@@ -236,10 +184,6 @@ class VHDLParser:
         ports = self._parse_ports(entity_body)
 
         self.entity = Entity(name=entity_name, ports=ports, generics=generics)
-
-        print(f"Parsed entity: {entity_name}")  # Print the entity name
-        print(f"Ports: {[p.name for p in ports]}")  # Print port names
-
         return self.entity
 
     def save_to_json(self, output_path: str) -> None:
@@ -273,8 +217,6 @@ def parse_vhdl_file(input_file: str, output_file: str = None) -> Dict:
         output_file = 'src/vhdl_module.json'
 
     parser.save_to_json(output_file)
-
     return entity.to_dict()
 
-# Create an alias for parse_vhdl_file
 parse_vhdl = parse_vhdl_file
