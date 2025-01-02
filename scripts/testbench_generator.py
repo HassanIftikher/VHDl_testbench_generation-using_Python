@@ -15,226 +15,254 @@ def load_vhdl_data(json_file):
     except FileNotFoundError:
         raise FileNotFoundError(f"JSON file '{json_file}' not found.")
 
-def handle_generics(vhdl_data):
-    """Handle generics in the VHDL module."""
-    generics = vhdl_data.get('vhdl_entity', {}).get('generics', [])
-    if generics:
-        tb_code = "generic map (\n"
-        for i, generic in enumerate(generics):
-            # Use the default value or a placeholder if no default is available
-            default_value = generic.get('default_value', '0')
-            tb_code += f"    {generic['name']} => {default_value}"
-            if i < len(generics) - 1:
-                tb_code += ",\n"
-        tb_code += "\n)"
-        return tb_code
-    return ""
-
-
-
-
 def parse_data_type(port):
-    """
-    Extracts the data type and range for a given port.
-    Handles various input formats including string and dictionary representations.
-    """
-    # If port is a dictionary, use existing logic
+    """Enhanced parse_data_type function to handle various VHDL data types and vector widths"""
     if isinstance(port, dict):
-        # Normalize the data_type string
-        data_type = port.get('data_type', '').strip()
+        data_type = port.get('data_type', '').strip().lower()
         width = port.get('width')
-        
-        # Special handling for STD_LOGIC_VECTOR with unclosed parenthesis
-        if data_type.lower().startswith("std_logic_vector"):
-            # Try to extract range from the data_type string
-            range_match = re.search(r'\((\w+)\s*(downto|to)\s*(\w+)', data_type, re.IGNORECASE)
-            if range_match:
-                high = range_match.group(1)
-                low = range_match.group(3)
-                return 'STD_LOGIC_VECTOR', f'({high} downto {low})'
+
+        # Handle STD_LOGIC_VECTOR with explicit width specification
+        if data_type == "std_logic_vector":
+            if isinstance(width, dict):
+                left = width.get('left')
+                right = width.get('right')
+                direction = width.get('direction', 'downto').lower()
+                
+                # Handle parametric expressions (e.g., DATA_WIDTH-1)
+                if isinstance(left, str) and any(c.isalpha() for c in left):
+                    return "STD_LOGIC_VECTOR", f"({left} {direction} {right})"
+                if isinstance(right, str) and any(c.isalpha() for c in right):
+                    return "STD_LOGIC_VECTOR", f"({left} {direction} {right})"
+                    
+                return "STD_LOGIC_VECTOR", f"({left} {direction} {right})"
+            elif isinstance(width, str):
+                # Handle width specified as string, including parametric expressions
+                return "STD_LOGIC_VECTOR", f"({width})"
+            elif isinstance(width, (list, tuple)) and len(width) == 2:
+                # Handle width specified as [high, low]
+                return "STD_LOGIC_VECTOR", f"({width[0]} downto {width[1]})"
             else:
-                return 'STD_LOGIC_VECTOR', ''
-        
-        if data_type.lower() == "std_logic":
+                raise ValueError(f"Invalid width specification for STD_LOGIC_VECTOR: {width}")
+
+        # Handle STD_LOGIC
+        elif data_type == "std_logic":
             return "STD_LOGIC", ""
         
-        elif data_type.lower() == "std_logic_vector":
-            if isinstance(width, dict):
-                width_str = f"{width['left']} {width['direction']} {width['right']}"
-                return "STD_LOGIC_VECTOR", f"({width_str})"
-            elif isinstance(width, str):
-                range_match = re.search(r'\((\w+)\s+downto\s+(\w+)\)', width)
-                if range_match:
-                    high = range_match.group(1)
-                    low = range_match.group(2)
-                    return 'STD_LOGIC_VECTOR', f'({high} downto {low})'
-            else:
-                raise ValueError(f"Missing or invalid width for {data_type}.")
-        
-        elif data_type.lower().startswith("integer"):
-            range_match = re.search(r'range\s+(.+)', data_type, re.IGNORECASE)
-            if range_match:
-                range_str = range_match.group(1)
-                return "INTEGER", f"range {range_str}"
-            else:
-                return "INTEGER", ""
-        
-        elif data_type.lower() in ['boolean', 'unsigned', 'signed']:
-            return data_type.upper(), ""
-        
         else:
-            raise NotImplementedError(f"Data type {data_type} is not yet supported.")
-    
-    # Existing code for string and other input types remains the same
-    # ... (rest of the previous implementation)                                                                                                                                                                           
+            raise ValueError(f"Unsupported data type: {data_type}")
 
+    raise ValueError("Invalid port definition format")
+
+def get_vector_width(range_str):
+    """Extract vector width from range string, handling parametric expressions"""
+    # Check if the range contains parametric expressions
+    if any(c.isalpha() for c in range_str):
+        return None  # Return None for parametric widths
+        
+    match = re.search(r'\((\d+)\s+downto\s+(\d+)\)', range_str)
+    if match:
+        high, low = map(int, match.groups())
+        return high - low + 1
+    return None
+
+def generate_test_vectors(port, data_type, range_str):
+    """Generate appropriate test vectors based on port type"""
+    test_code = []
+    port_name = port['name']
+    
+    if port['direction'] != 'in':
+        return ""
+
+    if data_type == "STD_LOGIC":
+        test_code.extend([
+            f"        -- Test case for {port_name}",
+            f"        {port_name} <= '0';",
+            "        wait for 10 ns;",
+            f"        {port_name} <= '1';",
+            "        wait for 10 ns;",
+            f"        {port_name} <= '0';",
+            "        wait for 10 ns;"
+        ])
+    elif data_type == "STD_LOGIC_VECTOR":
+        width = get_vector_width(range_str)
+        if width:
+            # Generate test vectors for fixed width
+            test_code.extend([
+                f"        -- Test cases for {port_name}",
+                f"        {port_name} <= (others => '0');",
+                "        wait for 10 ns;",
+                f"        {port_name} <= \"{format(1, '0' + str(width) + 'b')}\";",
+                "        wait for 10 ns;",
+                f"        {port_name} <= \"{format(2**(width-1), '0' + str(width) + 'b')}\";",
+                "        wait for 10 ns;",
+                f"        {port_name} <= (others => '1');",
+                "        wait for 10 ns;",
+                f"        {port_name} <= \"{format(5, '0' + str(width) + 'b')}\";",
+                "        wait for 10 ns;",
+                f"        {port_name} <= \"{format(10, '0' + str(width) + 'b')}\";",
+                "        wait for 10 ns;"
+            ])
+        else:
+            # Generate generic test vectors for parametric width
+            test_code.extend([
+                f"        -- Test cases for {port_name} (parametric width)",
+                f"        {port_name} <= (others => '0');",
+                "        wait for 10 ns;",
+                f"        {port_name} <= (0 => '1', others => '0');",  # Set LSB
+                "        wait for 10 ns;",
+                f"        {port_name} <= (others => '1');",  # Set all bits
+                "        wait for 10 ns;",
+                f"        {port_name} <= (others => '0');",
+                "        wait for 10 ns;"
+            ])
+    
+    return "\n".join(test_code)
+
+def generate_clock_process(clock_signal, clock_period):
+    """Generate clock process for testbench"""
+    return f"""
+    -- Clock generation process
+    clk_process: process
+    begin
+        while now < 1000 ns loop  -- Run simulation for 1000 ns
+            {clock_signal} <= '0';
+            wait for {clock_period/2} ns;
+            {clock_signal} <= '1';
+            wait for {clock_period/2} ns;
+        end loop;
+        wait;
+    end process;
+"""
+
+def generate_reset_process(reset_signal):
+    """Generate reset process for testbench"""
+    return f"""
+    -- Reset process
+    reset_process: process
+    begin
+        {reset_signal} <= '1';
+        wait for 20 ns;
+        {reset_signal} <= '0';
+        wait;
+    end process;
+"""
 
 def generate_testbench(vhdl_data, output_file):
-    """Generates VHDL testbench code based on JSON description of the VHDL module."""
+    """Enhanced testbench generator with proper signal initialization and test vectors"""
     entity_name = vhdl_data['vhdl_entity']['name']
     ports = vhdl_data['vhdl_entity']['ports']
-    generics = vhdl_data['vhdl_entity']['generics']
-    clock_period = 10  # Default clock period for clock signal
+    clock_period = 10
 
+    # Find clock and reset signals if they exist
+    clock_signal = next((p['name'] for p in ports if p['name'].lower() in ['clk', 'clock']), None)
+    reset_signal = next((p['name'] for p in ports if p['name'].lower() in ['rst', 'reset']), None)
+
+    # Generate the testbench header
     tb_code = f"""
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL;  -- For handling unsigned/signed types
+use IEEE.NUMERIC_STD.ALL;
 
 entity {entity_name}_tb is
 end {entity_name}_tb;
 
 architecture Behavioral of {entity_name}_tb is
-    -- Signal declarations for inputs and output of DUT
-    """
-
-    # Declare signals for all ports
-    for port in ports:
-        data_type, range_str = parse_data_type(port)
-        tb_code += f"    signal {port['name']} : {data_type}{range_str};\n"
-
-    tb_code += f"""
-    -- DUT Component declaration
+    -- Component declaration
     component {entity_name}
-    """
-
-    # Add generic map declaration
-    if generics:
-        tb_code += "    generic (\n"
-        for i, generic in enumerate(generics):
-            tb_code += f"        {generic['name']} : {generic['data_type']}"
-            if generic['default_value']:
-                tb_code += f" := {generic['default_value']}"
-            if i < len(generics) - 1:
-                tb_code += ";\n"
-        tb_code += "\n    );\n"
-
-    # Add port declaration
-    tb_code += "    port (\n"
+    port (
+"""
+    
+    # Port declarations in component
     for i, port in enumerate(ports):
         data_type, range_str = parse_data_type(port)
         tb_code += f"        {port['name']} : {port['direction']} {data_type}{range_str}"
         if i < len(ports) - 1:
             tb_code += ";\n"
-    tb_code += "\n    );\nend component;\n\nbegin\n"
-
-    # Handle generic mapping in the instantiation
-    if generics:
-        tb_code += f"    UUT: {entity_name}\n"
-        tb_code += "        generic map (\n"
-        for i, generic in enumerate(generics):
-            tb_code += f"            {generic['name']} => {generic['default_value']}"
-            if i < len(generics) - 1:
-                tb_code += ",\n"
-        tb_code += "\n        )\n"
-    else:
-        tb_code += f"    UUT: {entity_name}\n"
-
-    # Instantiate the DUT
-    tb_code += "        port map (\n"
+    
+    tb_code += "\n    );\n    end component;\n\n"
+    
+    # Add generic parameter constants if needed
+    has_parametric_ports = any(
+        'DATA_WIDTH' in str(port.get('width', '')) 
+        for port in ports
+    )
+    if has_parametric_ports:
+        tb_code += "    -- Generic parameters\n"
+        tb_code += "    constant DATA_WIDTH : integer := 32;  -- Default width for testing\n\n"
+    
+    # Signal declarations
+    for port in ports:
+        data_type, range_str = parse_data_type(port)
+        tb_code += f"    signal {port['name']} : {data_type}{range_str};\n"
+    
+    # Begin architecture
+    tb_code += """
+begin
+    -- Component instantiation
+    UUT: """
+    tb_code += f"{entity_name} port map (\n"
+    
+    # Port map
     for i, port in enumerate(ports):
-        tb_code += f"            {port['name']} => {port['name']}"
+        tb_code += f"        {port['name']} => {port['name']}"
         if i < len(ports) - 1:
             tb_code += ",\n"
-    tb_code += "\n        );\n"
+    
+    tb_code += "\n    );\n"
 
-    # Clock generation process if a clock port is detected
-    clock_signal = next((p['name'] for p in ports if p['name'].lower() == 'clk'), None)
+    # Add clock process if needed
     if clock_signal:
-        tb_code += f"""
-    -- Clock generation process
-    clk_process : process
-    begin
-        while True loop
-            {clock_signal} <= '0';
-            wait for {clock_period / 2} ns;
-            {clock_signal} <= '1';
-            wait for {clock_period / 2} ns;
-        end loop;
-    end process;
-        """
+        tb_code += generate_clock_process(clock_signal, clock_period)
 
-    # Reset signal initialization (if any)
-    reset_signal = next((p['name'] for p in ports if p['name'].lower() == 'rst'), None)
+    # Add reset process if needed
     if reset_signal:
-        tb_code += f"""
-    -- Reset signal initialization
-    process
+        tb_code += generate_reset_process(reset_signal)
+    
+    # Generate test process
+    tb_code += """
+    -- Stimulus process
+    stim_proc: process
     begin
-        {reset_signal} <= '0';  -- Initialize reset
-        wait for 10 ns;         -- Wait for some time
-        {reset_signal} <= '1';  -- Assert reset
-        wait for 20 ns;
-        {reset_signal} <= '0';  -- Deassert reset
+        -- Initialize inputs
+"""
+    
+    # Generate test vectors for each input port
+    for port in ports:
+        if port['direction'] == 'in' and port['name'] not in [clock_signal, reset_signal]:
+            data_type, range_str = parse_data_type(port)
+            tb_code += generate_test_vectors(port, data_type, range_str) + "\n"
+    
+    tb_code += """
+        -- End simulation
         wait;
     end process;
-        """
+end Behavioral;
+"""
 
-    # Stimulus process for inputs (excluding clock)
-    tb_code += "\n    -- Stimulus process for applying test cases\n"
-    tb_code += "    stimulus_process : process\n    begin\n"
-
-    # Test cases for input signals (e.g., setting clk or data values)
-    for port in ports:
-        if port['direction'] == 'in' and port['name'].lower() != 'clk':
-            tb_code += f"        {port['name']} <= '0';\n        wait for 10 ns;\n"
-            tb_code += f"        {port['name']} <= '1';\n        wait for 10 ns;\n"
-
-    tb_code += "        wait;\n    end process;\nend Behavioral;\n"
-
-    # Write the generated testbench to the output file
-    output_file_path = os.path.join("src", output_file)
-    with open(output_file_path, "w") as tb_file:
-        tb_file.write(tb_code)
-    print(f"Testbench generated: {output_file_path}")
-
+    # Write the generated testbench
+    with open(output_file, 'w') as f:
+        f.write(tb_code)
 
 def main():
-    json_file = 'src/vhdl_module.json'  # Ensure this file exists and has valid data
+    # Create src directory if it doesn't exist
+    if not os.path.exists("src"):
+        os.makedirs("src")
+
+    json_file = 'src/vhdl_module.json'
     if not os.path.exists(json_file):
         print(f"Error: JSON file '{json_file}' not found.")
         return
 
-    vhdl_data = load_vhdl_data(json_file)
-    entity_name = vhdl_data['vhdl_entity']['name']
-    tb_file = f"{entity_name}_tb.vhdl"
-
-    # Generate the testbench in the src folder
-    generate_testbench(vhdl_data, tb_file)
-
-
-def main():
-    json_file = 'src/vhdl_module.json'  # Ensure this file exists and has valid data
-    if not os.path.exists(json_file):
-        print(f"Error: JSON file '{json_file}' not found.")
-        return
-
-    vhdl_data = load_vhdl_data(json_file)
-    entity_name = vhdl_data['vhdl_entity']['name']
-    tb_file = f"{entity_name}_tb.vhdl"
-
-    # Generate the testbench in the src folder
-    generate_testbench(vhdl_data, tb_file)
+    try:
+        vhdl_data = load_vhdl_data(json_file)
+        entity_name = vhdl_data['vhdl_entity']['name']
+        tb_file = os.path.join("src", f"{entity_name}_tb.vhdl")
+        
+        generate_testbench(vhdl_data, tb_file)
+        print(f"Successfully generated testbench: {tb_file}")
+        
+    except Exception as e:
+        print(f"Error generating testbench: {str(e)}")
 
 if __name__ == "__main__":
     main()
