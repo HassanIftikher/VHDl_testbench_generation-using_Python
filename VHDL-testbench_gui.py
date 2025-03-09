@@ -68,10 +68,11 @@ class VHDLTestbenchGenerator:
             return
 
         try:
-            # Create a temporary file to save the VHDL content
+            # Create src directory if it doesn't exist
             os.makedirs("src", exist_ok=True)
-            temp_vhdl_file = os.path.join("src", "temp_module.vhdl")
             
+            # First parse the content to get the entity name
+            temp_vhdl_file = os.path.join("src", "temp_module.vhdl")
             with open(temp_vhdl_file, "w") as f:
                 f.write(vhdl_content)
             
@@ -81,6 +82,15 @@ class VHDLTestbenchGenerator:
             # Extract entity name
             self.entity_name = parsed_data.get('name', '')
             
+            if not self.entity_name:
+                messagebox.showerror("Error", "Could not extract entity name from VHDL module.")
+                return
+                
+            # Save the actual VHDL module file with entity name
+            module_file = os.path.join("src", f"{self.entity_name}.vhdl")
+            with open(module_file, "w") as f:
+                f.write(vhdl_content)
+            
             # Store the parsed data
             self.parsed_vhdl_data = {
                 "vhdl_entity": parsed_data,
@@ -89,7 +99,7 @@ class VHDLTestbenchGenerator:
                 }
             }
             
-            messagebox.showinfo("Success", f"VHDL module parsed. Entity name: {self.entity_name}")
+            messagebox.showinfo("Success", f"VHDL module parsed and saved as: {module_file}\nEntity name: {self.entity_name}")
 
         except Exception as e:
             messagebox.showerror("Parsing Error", str(e))
@@ -100,21 +110,35 @@ class VHDLTestbenchGenerator:
             return
 
         try:
+            # Create src directory if it doesn't exist
+            if not os.path.exists("src"):
+                os.makedirs("src")
+                
             # Generate testbench filename
             tb_file = f"{self.entity_name}_tb.vhdl"
+            tb_path = os.path.join("src", tb_file)
+            
+            # First ensure the parsed data is saved to a JSON file
+            json_path = os.path.join("src", "vhdl_module.json")
+            with open(json_path, 'w') as f:
+                json.dump(self.parsed_vhdl_data, f, indent=4)
             
             # Use the generate_testbench function from the testbench generator script
-            generate_testbench(self.parsed_vhdl_data, tb_file)
+            generate_testbench(self.parsed_vhdl_data, tb_path)
             
-            # Read the generated testbench
-            with open(os.path.join("src", tb_file), "r") as f:
-                testbench_content = f.read()
-            
-            # Display the generated testbench in the output area
-            self.output_text.delete("1.0", tk.END)
-            self.output_text.insert(tk.END, testbench_content)
+            # Check if the file was created successfully
+            if os.path.exists(tb_path):
+                # Read the generated testbench
+                with open(tb_path, "r") as f:
+                    testbench_content = f.read()
+                
+                # Display the generated testbench in the output area
+                self.output_text.delete("1.0", tk.END)
+                self.output_text.insert(tk.END, testbench_content)
 
-            messagebox.showinfo("Success", f"Testbench generated: {tb_file}")
+                messagebox.showinfo("Success", f"Testbench generated: {tb_file}")
+            else:
+                messagebox.showerror("Error", f"Failed to generate testbench file at {tb_path}")
 
         except Exception as e:
             messagebox.showerror("Testbench Generation Error", str(e))
