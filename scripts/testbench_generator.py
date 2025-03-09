@@ -158,8 +158,7 @@ def generate_testbench(vhdl_data, output_file):
     reset_signal = next((p['name'] for p in ports if p['name'].lower() in ['rst', 'reset']), None)
 
     # Generate the testbench header
-    tb_code = f"""
-library IEEE;
+    tb_code = f"""library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
@@ -168,47 +167,76 @@ end {entity_name}_tb;
 
 architecture Behavioral of {entity_name}_tb is
     -- Component declaration
-    component {entity_name}
-    port (
-"""
+    component {entity_name}"""
+
+    # Add generics only if present and not empty
+    if 'generics' in vhdl_data['vhdl_entity'] and vhdl_data['vhdl_entity']['generics']:
+        tb_code += "\n    generic (\n"
+        for i, generic in enumerate(vhdl_data['vhdl_entity']['generics']):
+            name = generic['name']
+            data_type = generic['data_type']
+            value = generic['default_value']
+            tb_code += f"        {name} : {data_type} := {value}"
+            if i < len(vhdl_data['vhdl_entity']['generics']) - 1:
+                tb_code += ";\n"
+            else:
+                tb_code += "\n"
+        tb_code += "    );"
     
     # Port declarations in component
+    tb_code += "\n    port (\n"
     for i, port in enumerate(ports):
         data_type, range_str = parse_data_type(port)
         tb_code += f"        {port['name']} : {port['direction']} {data_type}{range_str}"
         if i < len(ports) - 1:
             tb_code += ";\n"
-    
-    tb_code += "\n    );\n    end component;\n\n"
-    
-    # Add generic parameter constants if needed
-    has_parametric_ports = any(
-        'DATA_WIDTH' in str(port.get('width', '')) 
-        for port in ports
-    )
-    if has_parametric_ports:
-        tb_code += "    -- Generic parameters\n"
-        tb_code += "    constant DATA_WIDTH : integer := 32;  -- Default width for testing\n\n"
+    tb_code += "\n    );\n"
+    tb_code += "    end component;\n\n"
+
+    # Add generic constants only if present and not empty
+    if 'generics' in vhdl_data['vhdl_entity'] and vhdl_data['vhdl_entity']['generics']:
+        tb_code += "    -- Generic constants\n"
+        for generic in vhdl_data['vhdl_entity']['generics']:
+            name = generic['name']
+            value = generic['default_value']
+            data_type = generic['data_type']
+            tb_code += f"    constant {name} : {data_type} := {value};\n"
+        tb_code += "\n"
     
     # Signal declarations
+    tb_code += "    -- Signal declarations\n"
     for port in ports:
         data_type, range_str = parse_data_type(port)
         tb_code += f"    signal {port['name']} : {data_type}{range_str};\n"
     
     # Begin architecture
-    tb_code += """
-begin
-    -- Component instantiation
-    UUT: """
-    tb_code += f"{entity_name} port map (\n"
+    tb_code += "\nbegin\n"
+    
+    # Component instantiation
+    tb_code += "    -- Component instantiation\n"
+    tb_code += f"    UUT: {entity_name}"
+    
+    # Add generic map only if generics are present and not empty
+    if 'generics' in vhdl_data['vhdl_entity'] and vhdl_data['vhdl_entity']['generics']:
+        tb_code += "\n    generic map (\n"
+        for i, generic in enumerate(vhdl_data['vhdl_entity']['generics']):
+            name = generic['name']
+            tb_code += f"        {name} => {name}"
+            if i < len(vhdl_data['vhdl_entity']['generics']) - 1:
+                tb_code += ",\n"
+            else:
+                tb_code += "\n"
+        tb_code += "    )"
     
     # Port map
+    tb_code += "\n    port map (\n"
     for i, port in enumerate(ports):
         tb_code += f"        {port['name']} => {port['name']}"
         if i < len(ports) - 1:
             tb_code += ",\n"
-    
-    tb_code += "\n    );\n"
+        else:
+            tb_code += "\n"
+    tb_code += "    );\n"
 
     # Add clock process if needed
     if clock_signal:
