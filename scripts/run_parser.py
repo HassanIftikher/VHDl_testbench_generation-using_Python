@@ -1,26 +1,45 @@
-import sys
-import os
+
 from vhdl_parser import parse_vhdl_file
+import os
+
+def get_vhdl_file_path():
+    """
+    Interactively prompt the user to enter the path to the VHDL file.
+    Provides input validation and supports relative and absolute paths.
+    """
+    while True:
+        # Prompt user for file path
+        file_path = input("Enter the path to your VHDL file: ").strip()
+        
+        # Expand any user home directory shortcuts
+        file_path = os.path.expanduser(file_path)
+        
+        # Check if file exists
+        if os.path.isfile(file_path):
+            # Verify file has .vhdl or .vhd extension
+            if file_path.lower().endswith(('.vhdl', '.vhd')):
+                return file_path
+            else:
+                print("Error: The file must have a .vhdl or .vhd extension.")
+        else:
+            print(f"Error: The file '{file_path}' does not exist. Please check the path.")
 
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: python run_parser.py <input_vhdl_file> <output_json_file>")
-        sys.exit(1)
-    
-    input_vhdl_file = sys.argv[1]
-    output_json_file = sys.argv[2]
-
-    if not os.path.isfile(input_vhdl_file):
-        print(f"Error: Input VHDL file '{input_vhdl_file}' does not exist.")
-        sys.exit(1)
-
     try:
+        # Get VHDL file path from user
+        input_vhdl_file = get_vhdl_file_path()
+        
+        # Generate output JSON filename based on input file
+        output_json_file = 'src/vhdl_module.json'
+        
+        # Parse the VHDL and save to JSON
         parsed_entity = parse_vhdl_file(input_vhdl_file, output_json_file)
-        print(f"Parsed VHDL entity saved to JSON: {parsed_entity}")
+        
+        print(f"Parsed VHDL entity saved to JSON: {output_json_file}")
+        print("Parsed Entity Details:", parsed_entity)
+    
     except Exception as e:
-        print(f"Error while parsing VHDL file: {e}")
-        sys.exit(1)
+        print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     main()
-
