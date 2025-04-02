@@ -48,6 +48,28 @@ def parse_data_type(port):
         elif data_type == "std_logic":
             return "STD_LOGIC", ""
         
+        # Handle other data types (from paste-2.txt)
+        elif data_type in ["unsigned", "signed"]:
+            if isinstance(width, dict):
+                left = width.get('left')
+                right = width.get('right')
+                direction = width.get('direction', 'downto').lower()
+                return data_type.upper(), f"({left} {direction} {right})"
+            elif isinstance(width, str):
+                return data_type.upper(), f"({width})"
+            elif isinstance(width, (list, tuple)) and len(width) == 2:
+                return data_type.upper(), f"({width[0]} downto {width[1]})"
+            else:
+                raise ValueError(f"Invalid width specification for {data_type.upper()}: {width}")
+        
+        # Handle integer types
+        elif data_type in ["integer", "natural", "positive"]:
+            return data_type.upper(), ""
+        
+        # Handle boolean type
+        elif data_type == "boolean":
+            return "BOOLEAN", ""
+        
         else:
             raise ValueError(f"Unsupported data type: {data_type}")
 
@@ -65,54 +87,223 @@ def get_vector_width(range_str):
         return high - low + 1
     return None
 
-def generate_test_vectors(port, data_type, range_str):
-    """Generate appropriate test vectors based on port type"""
-    test_code = []
-    port_name = port['name']
+def estimate_simulation_time(ports):
+    """Estimate required simulation time based on design complexity"""
+    # Base simulation time
+    sim_time = 1000
     
-    if port['direction'] != 'in':
-        return ""
+    # Add time based on number of ports
+    sim_time += len(ports) * 50
+    
+    # Add additional time for complex modules
+    vector_ports = sum(1 for p in ports if p.get('data_type', '').lower() == 'std_logic_vector')
+    sim_time += vector_ports * 100
+    
+    return sim_time
 
-    if data_type == "STD_LOGIC":
-        test_code.extend([
-            f"        -- Test case for {port_name}",
-            f"        {port_name} <= '0';",
-            "        wait for 10 ns;",
-            f"        {port_name} <= '1';",
-            "        wait for 10 ns;",
-            f"        {port_name} <= '0';",
-            "        wait for 10 ns;"
-        ])
-    elif data_type == "STD_LOGIC_VECTOR":
-        width = get_vector_width(range_str)
-        if width:
-            # Generate test vectors for fixed width
+def generate_test_vectors(ports_data, clock_signal=None, reset_signal=None):
+    """Generate appropriate test vectors based on port types"""
+    # Filter out clock and reset signals
+    filtered_ports = [p for p in ports_data if p['name'] not in ([clock_signal] if clock_signal else []) + 
+                                             ([reset_signal] if reset_signal else [])]
+    
+    # First, identify all STD_LOGIC ports and other port types
+    std_logic_ports = []
+    other_ports = []
+    
+    for port in filtered_ports:
+        if port['direction'] not in ['in', 'inout']:
+            continue
+            
+        port_data_type, port_range = parse_data_type(port)
+        if port_data_type == "STD_LOGIC":
+            std_logic_ports.append(port)
+        else:
+            other_ports.append(port)
+    
+    # ADD THE INITIALIZATION CODE HERE
+    test_code = ["        -- Initialize all inputs to prevent undefined values"]
+    
+    for port in filtered_ports:
+        if port['direction'] in ['in', 'inout']:
+            port_data_type, port_range = parse_data_type(port)
+            
+            # Initialize based on type
+            if port_data_type == "STD_LOGIC":
+                test_code.append(f"        {port['name']} <= '0';")
+            elif port_data_type in ["STD_LOGIC_VECTOR", "UNSIGNED", "SIGNED"]:
+                test_code.append(f"        {port['name']} <= (others => '0');")
+            elif port_data_type in ["INTEGER", "NATURAL", "POSITIVE"]:
+                test_code.append(f"        {port['name']} <= 0;")
+            elif port_data_type == "BOOLEAN":
+                test_code.append(f"        {port['name']} <= false;")
+    
+    test_code.append("        wait for 10 ns;  -- Allow signals to settle")
+    test_code.append("")
+    
+    # Then continue with the original test pattern generation code
+    # Handle STD_LOGIC ports together in patterns
+    if std_logic_ports:
+        test_code.append("        -- Test patterns for STD_LOGIC ports")
+        
+        # ... rest of the function remains the same
+        
+        # Generate all possible combinations for up to 8 STD_LOGIC ports
+        if len(std_logic_ports) <= 8:
+            num_combinations = min(2 ** len(std_logic_ports), 16)  # Limit to 16 test cases for larger combinations
+            for i in range(num_combinations):
+                # Add blank line between test cases
+                if i > 0:
+                    test_code.append("")
+                
+                # Set each port based on the binary representation of i
+                for j, port in enumerate(std_logic_ports):
+                    bit_value = (i >> j) & 1
+                    test_code.append(f"        {port['name']} <= '{bit_value}';")
+                
+                test_code.append("        wait for 10 ns;")
+        else:
+            # For many ports, just do some basic test patterns
+            # All zeros
+            test_code.append("")
+            for port in std_logic_ports:
+                test_code.append(f"        {port['name']} <= '0';")
+            test_code.append("        wait for 10 ns;")
+            
+            # All ones
+            test_code.append("")
+            for port in std_logic_ports:
+                test_code.append(f"        {port['name']} <= '1';")
+            test_code.append("        wait for 10 ns;")
+            
+            # Alternating
+            test_code.append("")
+            for i, port in enumerate(std_logic_ports):
+                test_code.append(f"        {port['name']} <= '{i % 2}';")
+            test_code.append("        wait for 10 ns;")
+    
+    # Handle other port types individually
+    for port in other_ports:
+        port_data_type, port_range = parse_data_type(port)
+        port_name = port['name'].lower()
+        
+        test_code.append("")  # Add spacing between port sections
+        
+        if port_data_type in ["STD_LOGIC_VECTOR", "UNSIGNED", "SIGNED"]:
+            # Check for special port types
+            if "addr" in port_name:
+                width = get_vector_width(port_range)
+                if width is not None:
+                    test_code.extend([
+                        f"        -- Test address {port['name']}",
+                        f"        {port['name']} <= (others => '0');",
+                        "        wait for 10 ns;",
+                        f"        {port['name']} <= \"{format(5, '0' + str(width) + 'b')}\";",
+                        "        wait for 10 ns;"
+                    ])
+                else:
+                    test_code.extend([
+                        f"        -- Test address {port['name']} (parametric width)",
+                        f"        {port['name']} <= (others => '0');",
+                        "        wait for 10 ns;",
+                        f"        {port['name']} <= (2 => '1', 0 => '1', others => '0');  -- Example address pattern",
+                        "        wait for 10 ns;"
+                    ])
+            # Identify data signals (commonly named with "data")
+            elif "data" in port_name:
+                width = get_vector_width(port_range)
+                if width is not None:
+                    test_code.extend([
+                        f"        -- Write data to {port['name']}",
+                        f"        {port['name']} <= (others => '0');",
+                        "        wait for 10 ns;",
+                        f"        {port['name']} <= \"{format(42, '0' + str(width) + 'b')}\";  -- Example data",
+                        "        wait for 10 ns;"
+                    ])
+                else:
+                    test_code.extend([
+                        f"        -- Write data to {port['name']} (parametric width)",
+                        f"        {port['name']} <= (others => '0');",
+                        "        wait for 10 ns;",
+                        f"        {port['name']} <= (0 => '1', 1 => '0', 3 => '1', 5 => '1', others => '0');  -- Example data pattern",
+                        "        wait for 10 ns;",
+                        f"        {port['name']} <= (0 => '0', 1 => '1', 3 => '0', 5 => '1', others => '0');  -- Example data pattern",
+                        "        wait for 10 ns;"
+                    ])
+                    
+                # For bidirectional ports, add specific handling
+                if port['direction'] == 'inout':
+                    test_code.extend([
+                        f"        -- Set {port['name']} to high impedance (for reading)",
+                        f"        {port['name']} <= (others => 'Z');",
+                        "        wait for 10 ns;"
+                    ])
+            else:
+                # Original code for standard vectors
+                width = get_vector_width(port_range)
+                if width is not None:
+                    test_code.extend([
+                        f"        -- Test cases for {port['name']}",
+                        f"        {port['name']} <= (others => '0');",
+                        "        wait for 10 ns;"
+                    ])
+                    
+                    # Only try to create bit patterns if the width is manageable
+                    if width <= 64:
+                        test_code.extend([
+                            f"        {port['name']} <= \"{format(1, '0' + str(width) + 'b')}\";",
+                            "        wait for 10 ns;",
+                            f"        {port['name']} <= \"{format(min(2**(width-1), 2**63), '0' + str(width) + 'b')}\";",
+                            "        wait for 10 ns;"
+                        ])
+                    
+                    test_code.extend([
+                        f"        {port['name']} <= (others => '1');",
+                        "        wait for 10 ns;"
+                    ])
+                    
+                    # Add a few more test patterns for smaller vectors
+                    if width <= 64:
+                        test_code.extend([
+                            f"        {port['name']} <= \"{format(min(5, 2**width-1), '0' + str(width) + 'b')}\";",
+                            "        wait for 10 ns;",
+                            f"        {port['name']} <= \"{format(min(10, 2**width-1), '0' + str(width) + 'b')}\";",
+                            "        wait for 10 ns;"
+                        ])
+                else:
+                    test_code.extend([
+                        f"        -- Test cases for {port['name']} (parametric width)",
+                        f"        {port['name']} <= (others => '0');",
+                        "        wait for 10 ns;",
+                        f"        {port['name']} <= (0 => '1', others => '0');",  # Set LSB
+                        "        wait for 10 ns;",
+                        f"        {port['name']} <= (others => '1');",  # Set all bits
+                        "        wait for 10 ns;",
+                        f"        {port['name']} <= (others => '0');",
+                        "        wait for 10 ns;"
+                    ])
+        # Handle integer, natural, positive types
+        elif port_data_type in ["INTEGER", "NATURAL", "POSITIVE"]:
             test_code.extend([
-                f"        -- Test cases for {port_name}",
-                f"        {port_name} <= (others => '0');",
+                f"        -- Test cases for {port['name']} ({port_data_type})",
+                f"        {port['name']} <= 0;",
                 "        wait for 10 ns;",
-                f"        {port_name} <= \"{format(1, '0' + str(width) + 'b')}\";",
+                f"        {port['name']} <= 1;",
                 "        wait for 10 ns;",
-                f"        {port_name} <= \"{format(2**(width-1), '0' + str(width) + 'b')}\";",
+                f"        {port['name']} <= 10;",
                 "        wait for 10 ns;",
-                f"        {port_name} <= (others => '1');",
-                "        wait for 10 ns;",
-                f"        {port_name} <= \"{format(5, '0' + str(width) + 'b')}\";",
-                "        wait for 10 ns;",
-                f"        {port_name} <= \"{format(10, '0' + str(width) + 'b')}\";",
+                f"        {port['name']} <= 100;",
                 "        wait for 10 ns;"
             ])
-        else:
-            # Generate generic test vectors for parametric width
+        # Handle boolean type
+        elif port_data_type == "BOOLEAN":
             test_code.extend([
-                f"        -- Test cases for {port_name} (parametric width)",
-                f"        {port_name} <= (others => '0');",
+                f"        -- Test cases for {port['name']} (BOOLEAN)",
+                f"        {port['name']} <= false;",
                 "        wait for 10 ns;",
-                f"        {port_name} <= (0 => '1', others => '0');",  # Set LSB
+                f"        {port['name']} <= true;",
                 "        wait for 10 ns;",
-                f"        {port_name} <= (others => '1');",  # Set all bits
-                "        wait for 10 ns;",
-                f"        {port_name} <= (others => '0');",
+                f"        {port['name']} <= false;",
                 "        wait for 10 ns;"
             ])
     
@@ -124,7 +315,7 @@ def generate_clock_process(clock_signal, clock_period):
     -- Clock generation process
     clk_process: process
     begin
-        while now < 1000 ns loop  -- Run simulation for 1000 ns
+        while now < SIM_TIME loop  -- Run simulation for SIM_TIME
             {clock_signal} <= '0';
             wait for {clock_period/2} ns;
             {clock_signal} <= '1';
@@ -133,16 +324,18 @@ def generate_clock_process(clock_signal, clock_period):
         wait;
     end process;
 """
-
-def generate_reset_process(reset_signal):
+def generate_reset_process(reset_signal, reset_active_high=True):
     """Generate reset process for testbench"""
+    reset_value = "'1'" if reset_active_high else "'0'"
+    inactive_value = "'0'" if reset_active_high else "'1'"
+    
     return f"""
     -- Reset process
     reset_process: process
     begin
-        {reset_signal} <= '1';
+        {reset_signal} <= {reset_value};  -- Assert reset
         wait for 20 ns;
-        {reset_signal} <= '0';
+        {reset_signal} <= {inactive_value};  -- Deassert reset
         wait;
     end process;
 """
@@ -155,7 +348,13 @@ def generate_testbench(vhdl_data, output_file):
 
     # Find clock and reset signals if they exist
     clock_signal = next((p['name'] for p in ports if p['name'].lower() in ['clk', 'clock']), None)
-    reset_signal = next((p['name'] for p in ports if p['name'].lower() in ['rst', 'reset']), None)
+    reset_signal = next((p['name'] for p in ports if p['name'].lower() in ['rst', 'reset', 'rstn', 'resetn']), None)
+    reset_active_high = True
+    if reset_signal and any(n in reset_signal.lower() for n in ['rstn', 'resetn', '_n']):
+        reset_active_high = False
+
+    # Estimate simulation time based on complexity
+    sim_time = estimate_simulation_time(ports)
 
     # Generate the testbench header
     tb_code = f"""library IEEE;
@@ -209,6 +408,10 @@ architecture Behavioral of {entity_name}_tb is
         data_type, range_str = parse_data_type(port)
         tb_code += f"    signal {port['name']} : {data_type}{range_str};\n"
     
+    # Add simulation time constant
+    tb_code += f"\n    -- Simulation time\n"
+    tb_code += f"    constant SIM_TIME : time := {sim_time} ns;\n"
+    
     # Begin architecture
     tb_code += "\nbegin\n"
     
@@ -244,7 +447,7 @@ architecture Behavioral of {entity_name}_tb is
 
     # Add reset process if needed
     if reset_signal:
-        tb_code += generate_reset_process(reset_signal)
+        tb_code += generate_reset_process(reset_signal, reset_active_high)
     
     # Generate test process
     tb_code += """
@@ -253,13 +456,11 @@ architecture Behavioral of {entity_name}_tb is
     begin
         -- Initialize inputs
 """
-    
-    # Generate test vectors for each input port
-    for port in ports:
-        if port['direction'] == 'in' and port['name'] not in [clock_signal, reset_signal]:
-            data_type, range_str = parse_data_type(port)
-            tb_code += generate_test_vectors(port, data_type, range_str) + "\n"
-    
+
+    # Generate test vectors using the enhanced function
+    test_vectors = generate_test_vectors(ports, clock_signal, reset_signal)
+    tb_code += test_vectors
+
     tb_code += """
         -- End simulation
         wait;
