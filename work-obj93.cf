@@ -1,7 +1,0 @@
-v 4
-file . "src/d_flip_flop_tb.vhdl" "dfdffffcb53ec3eef50b3093d3862014db1b85d5" "20241020195623.131":
-  entity d_flip_flop_tb at 2( 1) + 0 on 13;
-  architecture behavioral of d_flip_flop_tb at 9( 156) + 0 on 14;
-file . "src/d_flip_flop.vhdl" "84e6a5b41298f2cd588c6d254c90efdb6cc6850f" "20241020195623.127":
-  entity d_flip_flop at 1( 0) + 0 on 11;
-  architecture behavioral of d_flip_flop at 13( 228) + 0 on 12;
