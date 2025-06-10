@@ -1,54 +1,35 @@
 {
-  "vhdl_entity": {
-    "name": "d_flip_flop",
-    "generics": [],
-    "ports": [
-      {
-        "name": "clk",
-        "direction": "in",
-        "data_type": "STD_LOGIC",
-        "width": null,
-        "default_value": null
-      },
-      {
-        "name": "rst",
-        "direction": "in",
-        "data_type": "STD_LOGIC",
-        "width": null,
-        "default_value": null
-      },
-      {
-        "name": "d",
-        "direction": "in",
-        "data_type": "STD_LOGIC",
-        "width": null,
-        "default_value": null
-      },
-      {
-        "name": "q",
-        "direction": "out",
-        "data_type": "STD_LOGIC",
-        "width": null,
-        "default_value": null
-      }
-    ]
-  },
-  "metadata": {
-    "supported_types": [
-      "std_logic",
-      "std_logic_vector",
-      "integer",
-      "boolean",
-      "natural",
-      "positive",
-      "signed",
-      "unsigned",
-      "real",
-      "bit",
-      "bit_vector",
-      "time",
-      "string"
-    ],
-    "parser_version": "1.0"
-  }
+    "vhdl_entity": {
+        "name": "sevseg_comb",
+        "generics": [],
+        "ports": [
+            {
+                "name": "sw",
+                "direction": "in",
+                "data_type": "std_logic_vector",
+                "width": "15 downto 0",
+                "default_value": null,
+                "range": null
+            },
+            {
+                "name": "sseg_ca",
+                "direction": "out",
+                "data_type": "std_logic_vector",
+                "width": "6 downto 0",
+                "default_value": null,
+                "range": null
+            },
+            {
+                "name": "sseg_an",
+                "direction": "out",
+                "data_type": "std_logic_vector",
+                "width": "3 downto 0",
+                "default_value": null,
+                "range": null
+            }
+        ]
+    },
+    "metadata": {
+        "parser_version": "1.0"
+    }
 }

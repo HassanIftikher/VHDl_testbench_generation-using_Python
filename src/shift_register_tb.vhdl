@@ -2,17 +2,17 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
-entity d_flip_flop_tb is
-end d_flip_flop_tb;
+entity shift_register_tb is
+end shift_register_tb;
 
-architecture Behavioral of d_flip_flop_tb is
+architecture Behavioral of shift_register_tb is
     -- Component declaration
-    component d_flip_flop
+    component shift_register
     port (
         clk : in STD_LOGIC;
         rst : in STD_LOGIC;
         d : in STD_LOGIC;
-        q : out STD_LOGIC
+        q : out STD_LOGIC_VECTOR(3 downto 0)
     );
     end component;
 
@@ -20,14 +20,14 @@ architecture Behavioral of d_flip_flop_tb is
     signal clk : STD_LOGIC;
     signal rst : STD_LOGIC;
     signal d : STD_LOGIC;
-    signal q : STD_LOGIC;
+    signal q : STD_LOGIC_VECTOR(3 downto 0);
 
     -- Simulation time
-    constant SIM_TIME : time := 1200 ns;
+    constant SIM_TIME : time := 1300 ns;
 
 begin
     -- Component instantiation
-    UUT: d_flip_flop
+    UUT: shift_register
     port map (
         clk => clk,
         rst => rst,

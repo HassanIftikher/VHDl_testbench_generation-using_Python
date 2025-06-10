@@ -2,37 +2,37 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
-entity d_flip_flop_tb is
-end d_flip_flop_tb;
+entity fsm_tb is
+end fsm_tb;
 
-architecture Behavioral of d_flip_flop_tb is
+architecture Behavioral of fsm_tb is
     -- Component declaration
-    component d_flip_flop
+    component fsm
     port (
         clk : in STD_LOGIC;
         rst : in STD_LOGIC;
-        d : in STD_LOGIC;
-        q : out STD_LOGIC
+        input_sig : in STD_LOGIC;
+        output_sig : out STD_LOGIC
     );
     end component;
 
     -- Signal declarations
     signal clk : STD_LOGIC;
     signal rst : STD_LOGIC;
-    signal d : STD_LOGIC;
-    signal q : STD_LOGIC;
+    signal input_sig : STD_LOGIC;
+    signal output_sig : STD_LOGIC;
 
     -- Simulation time
     constant SIM_TIME : time := 1200 ns;
 
 begin
     -- Component instantiation
-    UUT: d_flip_flop
+    UUT: fsm
     port map (
         clk => clk,
         rst => rst,
-        d => d,
-        q => q
+        input_sig => input_sig,
+        output_sig => output_sig
     );
 
     -- Clock generation process
@@ -61,14 +61,14 @@ begin
     begin
         -- Initialize inputs
         -- Initialize all inputs to prevent undefined values
-        d <= '0';
+        input_sig <= '0';
         wait for 10 ns;  -- Allow signals to settle
 
         -- Test patterns for STD_LOGIC ports
-        d <= '0';
+        input_sig <= '0';
         wait for 10 ns;
 
-        d <= '1';
+        input_sig <= '1';
         wait for 10 ns;
         -- End simulation
         wait;

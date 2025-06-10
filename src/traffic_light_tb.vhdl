@@ -2,37 +2,43 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
-entity d_flip_flop_tb is
-end d_flip_flop_tb;
+entity traffic_light_tb is
+end traffic_light_tb;
 
-architecture Behavioral of d_flip_flop_tb is
+architecture Behavioral of traffic_light_tb is
     -- Component declaration
-    component d_flip_flop
+    component traffic_light
     port (
         clk : in STD_LOGIC;
         rst : in STD_LOGIC;
-        d : in STD_LOGIC;
-        q : out STD_LOGIC
+        sensor : in STD_LOGIC;
+        red_light : out STD_LOGIC;
+        yellow_light : out STD_LOGIC;
+        green_light : out STD_LOGIC
     );
     end component;
 
     -- Signal declarations
     signal clk : STD_LOGIC;
     signal rst : STD_LOGIC;
-    signal d : STD_LOGIC;
-    signal q : STD_LOGIC;
+    signal sensor : STD_LOGIC;
+    signal red_light : STD_LOGIC;
+    signal yellow_light : STD_LOGIC;
+    signal green_light : STD_LOGIC;
 
     -- Simulation time
-    constant SIM_TIME : time := 1200 ns;
+    constant SIM_TIME : time := 1300 ns;
 
 begin
     -- Component instantiation
-    UUT: d_flip_flop
+    UUT: traffic_light
     port map (
         clk => clk,
         rst => rst,
-        d => d,
-        q => q
+        sensor => sensor,
+        red_light => red_light,
+        yellow_light => yellow_light,
+        green_light => green_light
     );
 
     -- Clock generation process
@@ -61,14 +67,14 @@ begin
     begin
         -- Initialize inputs
         -- Initialize all inputs to prevent undefined values
-        d <= '0';
+        sensor <= '0';
         wait for 10 ns;  -- Allow signals to settle
 
         -- Test patterns for STD_LOGIC ports
-        d <= '0';
+        sensor <= '0';
         wait for 10 ns;
 
-        d <= '1';
+        sensor <= '1';
         wait for 10 ns;
         -- End simulation
         wait;

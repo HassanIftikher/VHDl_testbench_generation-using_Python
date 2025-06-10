@@ -1,35 +1,45 @@
-library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL;
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 entity alu is
     port (
-        a     : in  STD_LOGIC_VECTOR(3 downto 0);
-        b     : in  STD_LOGIC_VECTOR(3 downto 0);
-        sel   : in  STD_LOGIC_VECTOR(1 downto 0);
-        result: out STD_LOGIC_VECTOR(3 downto 0);
-        carry : out STD_LOGIC
+        a       : in  std_logic_vector(7 downto 0);
+        b       : in  std_logic_vector(7 downto 0);
+        op      : in  std_logic_vector(2 downto 0);
+        result  : out std_logic_vector(7 downto 0);
+        zero    : out std_logic;
+        carry   : out std_logic;
+        overflow: out std_logic
     );
 end entity alu;
 
-architecture Behavioral of alu is
-    signal a_int, b_int, res_int : unsigned(3 downto 0);
-    signal carry_int : unsigned(4 downto 0);
+architecture behavioral of alu is
+    signal result_internal : std_logic_vector(8 downto 0);
 begin
-    a_int <= unsigned(a);
-    b_int <= unsigned(b);
-
-    process (a_int, b_int, sel)
+    process(a, b, op)
+        variable temp : signed(8 downto 0);
     begin
-        case sel is
-            when "00" => res_int <= a_int + b_int;  -- Add
-            when "01" => res_int <= a_int - b_int;  -- Subtract
-            when "10" => res_int <= a_int and b_int;-- AND
-            when others => res_int <= a_int or b_int; -- OR
+        case op is
+            when "000" => -- ADD
+                result_internal <= std_logic_vector(unsigned('0' & a) + unsigned('0' & b));
+            when "001" => -- SUB
+                result_internal <= std_logic_vector(unsigned('0' & a) - unsigned('0' & b));
+            when "010" => -- AND
+                result_internal <= '0' & (a and b);
+            when "011" => -- OR
+                result_internal <= '0' & (a or b);
+            when "100" => -- XOR
+                result_internal <= '0' & (a xor b);
+            when "101" => -- SHL
+                result_internal <= a & '0';
+            when others =>
+                result_internal <= (others => '0');
         end case;
     end process;
-
-    carry_int <= ('0' & a_int) + ('0' & b_int);  -- Calculate carry
-    result <= std_logic_vector(res_int);
-    carry <= carry_int(4);
-end architecture Behavioral;
+    
+    result <= result_internal(7 downto 0);
+    carry <= result_internal(8);
+    zero <= '1' when result_internal(7 downto 0) = "00000000" else '0';
+    overflow <= result_internal(8) xor result_internal(7);
+end architecture behavioral;

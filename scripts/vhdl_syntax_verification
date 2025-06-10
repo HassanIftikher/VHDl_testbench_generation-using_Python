@@ -1,0 +1,43 @@
+import subprocess
+import os
+import sys
+vhdl_file_path = "../src/shift_register.vhdl"
+
+def verify_vhdl_syntax(vhdl_file_path):
+    """
+    Verifies the syntax of a VHDL file using GHDL.
+    
+    Args:
+        vhdl_file_path (str): The path to the VHDL file to verify.
+        
+    Returns:
+        bool: True if the VHDL file is syntactically correct, False otherwise.
+        str: The output message from GHDL (error message if syntax is incorrect).
+    """
+    try:
+        # Run GHDL analysis command to check the syntax of the VHDL file
+        result = subprocess.run(
+            ["ghdl", "-a", vhdl_file_path],
+            text=True,
+            capture_output=True,
+            check=True
+        )
+        
+        # If the command runs without errors, the syntax is correct.
+        return True, f"VHDL syntax is correct for {vhdl_file_path}."
+
+    except subprocess.CalledProcessError as e:
+        # Capture any errors reported by GHDL
+        return False, f"Syntax error in VHDL file {vhdl_file_path}:\n{e.stderr}"
+
+def main():
+    # Example usage: Verify the syntax of a specific VHDL file in the `src` directory.
+    vhdl_file_path = os.path.join(os.path.dirname(__file__), "../src/alu.vhdl")
+    is_correct, message = verify_vhdl_syntax(vhdl_file_path)
+
+    print(message)
+    if not is_correct:
+        sys.exit(1)  # Exit with an error code if the file has syntax errors.
+
+if __name__ == "__main__":
+    main()

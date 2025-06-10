@@ -21,6 +21,17 @@ proc run_testbench {} {
     }
 }
 
+# For GUI interface
+proc run_interface {} {
+    if {[catch {exec /opt/Xilinx/Vivado/2020.2/tps/lnx64/python-3.8.3/bin/python3 ./VHDl_testbench_gui.py} result]} {
+        puts "Error: $result"
+    } else {
+        puts $result
+    }
+}
+
 puts "Commands loaded successfully:"
 puts "  run_parser <vhdl_file> - Execute the parser with the specified VHDL file"
 puts "  run_testbench          - Execute the testbench generator"
+puts "  run_interface          - Execute the GUI interface"
+
