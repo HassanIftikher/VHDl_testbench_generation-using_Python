@@ -1,0 +1,35 @@
+{
+    "vhdl_entity": {
+        "name": "sevseg_comb",
+        "generics": [],
+        "ports": [
+            {
+                "name": "sw",
+                "direction": "in",
+                "data_type": "std_logic_vector",
+                "width": "15 downto 0",
+                "default_value": null,
+                "range": null
+            },
+            {
+                "name": "sseg_ca",
+                "direction": "out",
+                "data_type": "std_logic_vector",
+                "width": "6 downto 0",
+                "default_value": null,
+                "range": null
+            },
+            {
+                "name": "sseg_an",
+                "direction": "out",
+                "data_type": "std_logic_vector",
+                "width": "3 downto 0",
+                "default_value": null,
+                "range": null
+            }
+        ]
+    },
+    "metadata": {
+        "parser_version": "1.0"
+    }
+}
