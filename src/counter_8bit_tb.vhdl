@@ -23,7 +23,7 @@ architecture Behavioral of counter_8bit_tb is
     signal count : STD_LOGIC_VECTOR(7 downto 0);
 
     -- Simulation time
-    constant SIM_TIME : time := 1300 ns;
+    constant SIM_TIME : time := 200 ns;
 
 begin
     -- Component instantiation

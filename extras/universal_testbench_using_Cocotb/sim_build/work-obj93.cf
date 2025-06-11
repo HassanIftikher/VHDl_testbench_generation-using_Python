@@ -1,0 +1,6 @@
+v 4
+file "/home/hassan/Desktop/VHDL_modules_testbench/" "my_module.vhd" "9d765ae57b9e13cdb59f73c95e30a1b6b3a17f06" "20241008220832.398":
+  entity my_module at 1( 0) + 0 on 11;
+  architecture behavioral of my_module at 11( 202) + 0 on 12;
+  entity counter at 24( 474) + 0 on 13;
+  architecture behavioral of counter at 35( 726) + 0 on 14;

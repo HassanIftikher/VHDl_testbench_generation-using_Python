@@ -1,29 +1,59 @@
 {
     "vhdl_entity": {
-        "name": "sevseg_comb",
-        "generics": [],
+        "name": "uart_tx",
+        "generics": [
+            {
+                "name": "CLKS_PER_BIT",
+                "data_type": "integer",
+                "default_value": "434"
+            }
+        ],
         "ports": [
             {
-                "name": "sw",
+                "name": "clk",
+                "direction": "in",
+                "data_type": "std_logic",
+                "width": null,
+                "default_value": null,
+                "range": null
+            },
+            {
+                "name": "rst",
+                "direction": "in",
+                "data_type": "std_logic",
+                "width": null,
+                "default_value": null,
+                "range": null
+            },
+            {
+                "name": "tx_start",
+                "direction": "in",
+                "data_type": "std_logic",
+                "width": null,
+                "default_value": null,
+                "range": null
+            },
+            {
+                "name": "tx_data",
                 "direction": "in",
                 "data_type": "std_logic_vector",
-                "width": "15 downto 0",
+                "width": "7 downto 0",
                 "default_value": null,
                 "range": null
             },
             {
-                "name": "sseg_ca",
+                "name": "tx",
                 "direction": "out",
-                "data_type": "std_logic_vector",
-                "width": "6 downto 0",
+                "data_type": "std_logic",
+                "width": null,
                 "default_value": null,
                 "range": null
             },
             {
-                "name": "sseg_an",
+                "name": "tx_busy",
                 "direction": "out",
-                "data_type": "std_logic_vector",
-                "width": "3 downto 0",
+                "data_type": "std_logic",
+                "width": null,
                 "default_value": null,
                 "range": null
             }

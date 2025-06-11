@@ -81,10 +81,10 @@ begin
         wait for 10 ns;  -- Allow signals to settle
 
         -- Test patterns for STD_LOGIC ports
-        tx_start <= '1';
-        wait for 50 ns;
-
         tx_start <= '0';
+        wait for 10 ns;
+
+        tx_start <= '1';
         wait for 10 ns;
 
         -- Write data to tx_data (parametric width)

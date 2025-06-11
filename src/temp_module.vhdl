@@ -1,35 +1,80 @@
-library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
-entity sevseg_comb is
-  port ( 
-    sw      : in  STD_LOGIC_VECTOR(15 downto 0);
-    sseg_ca : out STD_LOGIC_VECTOR(6 downto 0);
-    sseg_an : out STD_LOGIC_VECTOR(3 downto 0)
+entity uart_tx is
+    generic (
+        CLKS_PER_BIT : integer := 434  -- 50MHz/115200
     );
-end sevseg_comb;
+    port (
+        clk         : in  std_logic;
+        rst         : in  std_logic;
+        tx_start    : in  std_logic;
+        tx_data     : in  std_logic_vector(7 downto 0);
+        tx          : out std_logic;
+        tx_busy     : out std_logic
+    );
+end entity uart_tx;
 
-architecture arch_sevseg_comb of sevseg_comb is
+architecture behavioral of uart_tx is
+    type state_type is (IDLE, START, DATA, STOP);
+    signal state : state_type;
+    signal clk_count : integer range 0 to CLKS_PER_BIT-1;
+    signal bit_index : integer range 0 to 7;
+    signal tx_data_reg : std_logic_vector(7 downto 0);
 begin
-    sseg_ca <= "1000000" when sw(3 downto 0) = "0000" else
-               "1111001" when sw(3 downto 0) = "0001" else
-               "0100100" when sw(3 downto 0) = "0010" else
-               "0110000" when sw(3 downto 0) = "0011" else
-               "0011001" when sw(3 downto 0) = "0100" else
-               "0010010" when sw(3 downto 0) = "0101" else
-               "0000010" when sw(3 downto 0) = "0110" else
-               "1111000" when sw(3 downto 0) = "0111" else
-               "0000000" when sw(3 downto 0) = "1000" else
-               "0010000" when sw(3 downto 0) = "1001" else
-               "0001000" when sw(3 downto 0) = "1010" else
-               "0000011" when sw(3 downto 0) = "1011" else
-               "1000110" when sw(3 downto 0) = "1100" else
-               "0100001" when sw(3 downto 0) = "1101" else
-               "0000110" when sw(3 downto 0) = "1110" else
-               "0001110";
-
-    sseg_an(3) <= sw(15);
-    sseg_an(2) <= sw(14);
-    sseg_an(1) <= sw(13);
-    sseg_an(0) <= sw(12);
-end arch_sevseg_comb;
+    process(clk, rst)
+    begin
+        if rst = '1' then
+            state <= IDLE;
+            tx <= '1';
+            tx_busy <= '0';
+            clk_count <= 0;
+            bit_index <= 0;
+        elsif rising_edge(clk) then
+            case state is
+                when IDLE =>
+                    tx <= '1';
+                    tx_busy <= '0';
+                    clk_count <= 0;
+                    bit_index <= 0;
+                    
+                    if tx_start = '1' then
+                        tx_data_reg <= tx_data;
+                        state <= START;
+                        tx_busy <= '1';
+                    end if;
+                
+                when START =>
+                    tx <= '0';
+                    if clk_count < CLKS_PER_BIT-1 then
+                        clk_count <= clk_count + 1;
+                    else
+                        state <= DATA;
+                        clk_count <= 0;
+                    end if;
+                
+                when DATA =>
+                    tx <= tx_data_reg(bit_index);
+                    if clk_count < CLKS_PER_BIT-1 then
+                        clk_count <= clk_count + 1;
+                    else
+                        clk_count <= 0;
+                        if bit_index < 7 then
+                            bit_index <= bit_index + 1;
+                        else
+                            state <= STOP;
+                        end if;
+                    end if;
+                
+                when STOP =>
+                    tx <= '1';
+                    if clk_count < CLKS_PER_BIT-1 then
+                        clk_count <= clk_count + 1;
+                    else
+                        state <= IDLE;
+                    end if;
+            end case;
+        end if;
+    end process;
+end architecture behavioral;

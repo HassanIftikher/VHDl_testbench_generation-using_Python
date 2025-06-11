@@ -39,7 +39,7 @@ architecture Behavioral of fifo_buffer_tb is
     signal full : STD_LOGIC;
 
     -- Simulation time
-    constant SIM_TIME : time := 1600 ns;
+    constant SIM_TIME : time := 200 ns;
 
 begin
     -- Component instantiation
