@@ -6,7 +6,7 @@
 # For parser with file path as an argument
 proc run_parser {vhdl_file} {
     set output_json_file "src/vhdl_module.json"  ;# Fixed output file path
-    if {[catch {exec /opt/Xilinx/Vivado/2020.2/tps/lnx64/python-3.8.3/bin/python3 ./scripts/run_parser.py $vhdl_file $output_json_file} result]} {
+    if {[catch {exec /opt/Xilinx/Vivado/2020.2/tps/lnx64/python-3.8.3/bin/python3 ./run_parser.py $vhdl_file $output_json_file} result]} {
         puts "Error: $result"
     } else {
         puts "Parsed VHDL file and saved to src/vhdl_module.json"
